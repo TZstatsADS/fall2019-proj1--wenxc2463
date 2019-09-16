@@ -3,16 +3,22 @@
 ## Project 1: A "data story" on the songs of our times
 
 <img src="figs/title1.jpeg" width="500">
+![Hip-Hop](/Users/wendy/Desktop/GR5243/Project I/figs/Hiphop.png)
 
 ### [Project Description](doc/)
 This is the first and only *individual* (as opposed to *team*) this semester. 
 
 Term: Fall 2019
 
-+ Projec title: Lorem ipsum dolor sit amet
-+ This project is conducted by [your name]
++ Projec title: Hip-hop, a special genre
++ This project is conducted by Xiwen Chen 
 
-+ Project summary: [a short summary] Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
++ Project summary: In this R notebook, I try to find the features of the hip-hop song lyrics through Q&A. I do the data processing and saved the tidy object in a R file. For the rock and pop songs account for over 60 percent of the total, I mainly study rock and pop songs inaddition to hip-hop songs. In conclusion, hip-hop lyrics like to use many spoken words, which are not commonly used in rock and pop songs. Hip-hop songs usually express negative emotions and words in hip-hop songs are rich.
+
++ Questions answered in this project: 
+1. What are the most frequently used words in hip-pop lyrics? What about rock and pop?
+2. What are the emotions of hip-pop songs? 
+3. Are there many duplicate words in hip-hop songs?
 
 Following [suggestions](http://nicercode.github.io/blog/2013-04-05-projects/) by [RICH FITZJOHN](http://nicercode.github.io/about/#Team) (@richfitz). This folder is orgarnized as follows.
 
