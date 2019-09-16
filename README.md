@@ -3,7 +3,7 @@
 ## Project 1: A "data story" on the songs of our times
 
 <img src="figs/title1.jpeg" width="500">
-![Hip-Hop](/Users/wendy/Desktop/GR5243/Project I/figs/Hiphop.png)
+<img src="figs/Hiphop.png" width="500">
 
 ### [Project Description](doc/)
 This is the first and only *individual* (as opposed to *team*) this semester. 
