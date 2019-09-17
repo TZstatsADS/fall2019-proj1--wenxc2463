@@ -1,0 +1,299 @@
+---
+title: "Hip-Hop, a special genre"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+![Hip-Hop](/Users/wendy/Desktop/GR5243/Project I/figs/Hiphop.png)
+
+#### In this R notebook, I try to find the features of the hip-hop song lyrics through Q&A.
+
+#### About the dataset: 
+"lyrics.csv" is a filtered corpus of 380,000+ song lyrics from from MetroLyrics. You can read more about it on [Kaggle](https://www.kaggle.com/gyani95/380000-lyrics-from-metrolyrics).
+
+"artists.csv" provides the background information of all the artistis. These information are scraped from [LyricsFreak](https://www.lyricsfreak.com/).
+
+I am very interested in the lyrics of hip-hop song. As we all know, the music style of hip-pop is very different from other genres. In addition, from the shiny app, I found that the hip-hop song lyrics are very different from other genres. Hence, in this project I want to find the features of the hip-hop song lyrics through Q&A.
+
+## Data Processing
+```{r load libraries, warning=FALSE, message=FALSE, echo = FALSE}
+## Step 0 - Load all the required libraries
+library(tm)
+library(data.table)
+library(tidytext)
+library(tidyverse)
+library(DT)
+library(syuzhet)
+library(sentimentr)
+library(tibble)
+library(qdap)
+library(ggplot2)
+library(wordcloud2)
+library(plotly)
+library(gridExtra)
+library(grid)
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE, eval=FALSE}
+## Step 1 - Load the data to be cleaned and processed
+# load lyrics data
+load('.../data/lyrics.RData') 
+```
+
+```{r text processing in tm, warning=FALSE, message=FALSE,eval=FALSE}
+## Step 2 - Preliminary cleaning of text
+# function for removimg leading and trailing whitespace from character strings 
+leadingWhitespace <- content_transformer(function(x) str_trim(x, side = "both"))
+# remove stop words
+data("stop_words")
+word <- c("lot", "today", "months", "month", "wanna", "wouldnt", "wasnt", "ha", "na", "ooh", "da",
+        "gonna", "im", "dont", "aint", "wont", "yeah", "la", "oi", "nigga", "fuck",
+          "hey", "year", "years", "last", "past", "feel")
+stop_words <- c(stop_words$word, word)
+# clean the data and make a corpus
+corpus <- VCorpus(VectorSource(dt_lyrics$lyrics))%>%
+  tm_map(content_transformer(tolower))%>%
+  tm_map(removePunctuation)%>%
+  tm_map(removeWords, character(0))%>%
+  tm_map(removeWords, stop_words)%>%
+  tm_map(removeNumbers)%>%
+  tm_map(stripWhitespace)%>%
+  tm_map(leadingWhitespace)
+```
+
+```{r stemming, warning=FALSE, message=FALSE,eval=FALSE}
+## Step 3 - Stemming words and converting tm object to tidy object
+stemmed <- tm_map(corpus, stemDocument) %>%
+  tidy() %>%
+  select(text)
+```
+
+```{r tidy dictionary, warning=FALSE, message=FALSE, eval=FALSE}
+## Step 4 - Creating tidy format of the dictionary to be used for completing stems
+dict <- tidy(corpus) %>%
+  select(text) %>%
+  unnest_tokens(dictionary, text)
+```
+
+```{r tidy stems with dictionary, warning=FALSE, message=FALSE, eval=FALSE}
+## Step 5 - Combining stems and dictionary into the same tibble
+completed <- stemmed %>%
+  mutate(id = row_number()) %>%
+  unnest_tokens(stems, text) %>%
+  bind_cols(dict) 
+```
+
+```{r stem completion, warning=FALSE, message=FALSE, eval=FALSE}
+## Step 6 - Stem completion
+completed <- completed %>%
+  group_by(stems) %>%
+  count(dictionary) %>%
+  mutate(word = dictionary[which.max(n)]) %>%
+  ungroup() %>%
+  select(stems, word) %>%
+  distinct() %>%
+  right_join(completed) %>%
+  select(-stems)
+```
+
+```{r reverse unnest, warning=FALSE, message=FALSE, eval=FALSE}
+## Step 8 - Pasting stem completed individual words into their respective lyrics
+completed <- completed %>%
+  group_by(id) %>%
+  summarise(stemmedwords= str_c(word, collapse = " ")) %>%
+  ungroup()
+```
+
+```{r cleaned hm_data, warning=FALSE, message=FALSE, eval=FALSE}
+## Step 9 - Keeping a track of the processed lyrics with their own ID
+dt_lyrics <- dt_lyrics %>%
+  mutate(id = row_number()) %>%
+  inner_join(completed)
+dt_lyrics <- dt_lyrics %>% select(-id) %>% mutate(id = row_number())
+```
+
+```{r export data, warning=FALSE, message=FALSE, eval=FALSE}
+## Exporting the processed text data into a CSV file
+save(dt_lyrics, file="../output/processed_lyrics.RData")
+save(dt_lyrics, file="../output/processed_lyrics.csv")
+```
+
+First, I do the data processing and save the processed data in a R file. I remove all the stopwords, stem words and convert them to a tidy object. 
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# load lyrics data
+load("../output/processed_lyrics.RData") 
+```
+
+Then Let's take a look at the dataset, rock and pop songs account for over 60 percent of the total. Hence, in addition to hip-hop songs, I mainly study rock and pop songs.
+```{r}
+library(plotly)
+dt_lyrics_genre_count <- dt_lyrics %>% group_by(genre) %>% count(genre) %>% ungroup() %>% mutate(proportion = round((n/sum(n))*100,2), sort = TRUE)
+g<- ggplot(dt_lyrics_genre_count, aes(x = fct_reorder(genre, proportion), y = proportion, fill = genre))+geom_col() + coord_flip() + xlab('genre')
+
+ggplotly(g, tooltip = c('y', 'fill', 'colour'))
+``` 
+
+## Q1: What are the most frequently used words in hip-pop lyrics? What about rock and pop?
+```{r word cloud, warning=FALSE, message=FALSE}
+corpus <- VCorpus(VectorSource(dt_lyrics$stemmedwords))
+word_tibble <- tidy(corpus) %>%
+  select(text) %>%
+  mutate(id = row_number()) %>%
+  unnest_tokens(word, text)
+hip_hop_tibble <- word_tibble %>% filter(id %in% which(dt_lyrics$genre == 'Hip-Hop'))
+rock_tibble <- word_tibble %>% filter(id %in% which(dt_lyrics$genre == 'Rock'))
+pop_tibble <- word_tibble %>% filter(id %in% which(dt_lyrics$genre == 'Pop'))
+hip_hop_tibble_count <- hip_hop_tibble %>%
+  count(word, sort = TRUE)
+rock_tibble_count <- rock_tibble %>%
+  count(word, sort = TRUE)
+pop_tibble_count <- pop_tibble %>%
+  count(word, sort = TRUE)
+w1<-wordcloud2(hip_hop_tibble_count %>% slice(1:50), size = 0.6, rotateRatio = 0.2)
+w2<-wordcloud2(rock_tibble_count %>% slice(1:50), size = 0.6, rotateRatio = 0.2)
+w3<-wordcloud2(pop_tibble_count %>% slice(1:50), size = 0.6, rotateRatio = 0.2)
+```
+![Hip-Hop WordCloud](/Users/wendy/Desktop/GR5243/Project I/figs/Hip-Hop wc.png)
+![Rock WordCloud](/Users/wendy/Desktop/GR5243/Project I/figs/Rock wc.png)
+![Pop WordCloud](/Users/wendy/Desktop/GR5243/Project I/figs/Pop wc.png)
+
+From the wordcloud, we can find that the hip-hop song lyrics are very different from rock and pop song lyrics. The rock song lyrics are similar to pop song lyrics. In addition, words in hip-hop songs are more rich while pop songs like to use some specific words.
+
+```{r commonly used words, warning=FALSE, message=FALSE}
+library(gridExtra)
+p1 <- ggplot(hip_hop_tibble_count[1:15,], aes(x = fct_reorder(word,n), y = n)) + 
+  geom_col(fill = 'lightblue') + coord_flip() + xlab('word') + ylab('frequency') +
+  ggtitle('Hip-Hop') + theme(plot.title = element_text(hjust=0.5, size = 10))
+p2 <- ggplot(rock_tibble_count[1:15,], aes(x = fct_reorder(word,n), y = n)) + 
+  geom_col(fill = 'lightblue') + coord_flip() + xlab('word') + ylab('frequency') +
+  ggtitle('Rock') + theme(plot.title = element_text(hjust=0.5, size = 10))
+p3 <- ggplot(pop_tibble_count[1:15,], aes(x = fct_reorder(word,n), y = n)) + 
+  geom_col(fill = 'lightblue') + coord_flip() + xlab('word') + ylab('frequency') + 
+  ggtitle('Pop') + theme(plot.title = element_text(hjust=0.5, size = 10))
+title1 <- textGrob("The 15 Most Frequently Used Words", 
+                   gp=gpar(fontface="bold", fontsize = 15))
+grid.arrange(p1,p2,p3,nrow = 2, top = title1)
+```
+
+Then let's have a look at the bar chart, we can see that among the 15 most frequently used words in rock and pop songs, only one word is different. However, there are many spoken words like yo, ya, em, shit in hip-hop songes which are not commonly used in rock and pop songs.
+
+## Q2: What are the emotions of hip-pop songs? 
+For me, I usually consider hip-hop songs as a way to vent negative emotions. Hence, I am curious if this idea is true according to the lyrics of hip-hop songs. 
+
+```{r emotions, warning=FALSE, message=FALSE}
+sentiment.df<-NULL
+dt_lyrics_h <- dt_lyrics[dt_lyrics$genre == 'Hip-Hop',]
+for(i in 1:nrow(dt_lyrics_h)){
+    sentences <- get_sentences(dt_lyrics_h$stemmedwords[i])
+    sentences <- sentences[[1]]
+    emotions <- get_nrc_sentiment(sentences)
+    word.count<-word_count(sentences)
+    emotions<-1/(word.count+0.01) * as.matrix(emotions)
+    sentiment.df=rbind(sentiment.df, 
+                        cbind(dt_lyrics[i,c('id','song','genre')],
+                              sentences=as.character(sentences), 
+                              word.count,
+                              emotions
+                              )
+                       )
+}
+sent.df <- as.matrix(sentiment.df[6:15])
+sentiment.df.p<-NULL
+dt_lyrics_p <- dt_lyrics[dt_lyrics$genre == 'Pop',]
+for(i in 1:nrow(dt_lyrics_p)){
+    sentences <- get_sentences(dt_lyrics_p$stemmedwords[i])
+    sentences <- sentences[[1]]
+    emotions <- get_nrc_sentiment(sentences)
+    word.count<-word_count(sentences)
+    emotions<-1/(word.count+0.01) * as.matrix(emotions)
+    sentiment.df.p=rbind(sentiment.df.p, 
+                        cbind(dt_lyrics[i,c('id','song','genre')],
+                              sentences=as.character(sentences), 
+                              word.count,
+                              emotions
+                              )
+                       )
+}
+sent.df.p <- as.matrix(sentiment.df.p[6:15])
+heatmap(sent.df, Colv = NA, Rowv = NA, labRow = FALSE, 
+        main = 'Hip-Pop Song Emotions',
+        col= colorRampPalette(brewer.pal(8, "Blues"))(25),
+        margins = c(5,2), cexCol = 1, cex.main = 0.5)
+heatmap(sent.df.p, Colv = NA, Rowv = NA, labRow = FALSE, 
+        col= colorRampPalette(brewer.pal(8, "Blues"))(25), 
+        margins = c(5,2),
+        main = 'Pop Song Emotions', cexCol = 1)
+```
+
+From the heatmap, we can see that indeed, most hip-hop songs express negative emotions while most pop songs express positive emotions. And there are no other significant emotions in hip-hop and pop songs. Anger plays some roles in hip-hop songs and joy plays some roles in pop songs.
+
+## Q3: Are there many duplicate words in hip-hop songs? 
+I have listened to a hip-hop song called Gucci Gang, which have a lot of duplicate words in its chorus, which makes me interested in whether there are many duplicate words in hip-hop lyrics. I calculate what proportion the most commonly used word in a song account for.
+```{r repetitive words, warning=FALSE, message=FALSE}
+## hip_hop genre
+hip_hop_word_repetition <- hip_hop_tibble %>%
+  group_by(id) %>% count(word, sort = TRUE)
+word_num_h <- hip_hop_tibble %>% group_by(id) %>% count(id,name = 'word_count', sort = TRUE)
+hip_hop_word_repetition_m <- hip_hop_word_repetition %>% group_by(id) %>% summarise(n = max(n))
+hip_hop_word_repetition <- hip_hop_word_repetition %>% 
+  inner_join(hip_hop_word_repetition_m) %>% arrange(desc(n))
+hip_hop_word_repetition <- hip_hop_word_repetition %>% inner_join(word_num_h) %>% mutate(rep_rate = n/word_count)
+
+## rock genre
+rock_word_repetition <- rock_tibble %>%
+  group_by(id) %>% count(word, sort = TRUE)
+word_num_r <- rock_tibble %>% group_by(id) %>% count(id,name = 'word_count', sort = TRUE) 
+rock_word_repetition_m <- rock_word_repetition %>% group_by(id) %>% summarise(n = max(n))
+rock_word_repetition <- rock_word_repetition %>% 
+  inner_join(rock_word_repetition_m) %>% arrange(-n) 
+rock_word_repetition <- rock_word_repetition %>% inner_join(word_num_r) %>% mutate(rep_rate = n/word_count)
+
+## pop genre
+pop_word_repetition <- pop_tibble %>%
+  group_by(id) %>% count(word, sort = TRUE) 
+word_num <- pop_tibble %>% group_by(id) %>% count(id,name = 'word_count', sort = TRUE)
+pop_word_repetition_m <- pop_word_repetition %>% group_by(id) %>% summarise(n = max(n))
+pop_word_repetition <- pop_word_repetition %>% 
+  inner_join(pop_word_repetition_m) %>% arrange(-n)
+pop_word_repetition <- pop_word_repetition %>% inner_join(word_num) %>% mutate(rep_rate = n/word_count)
+
+g1 <- ggplot(hip_hop_word_repetition, aes(x = round(rep_rate,2))) + 
+  geom_bar(fill = 'lightblue') + xlab('') +
+  ggtitle('Hip-Hop') + 
+  theme(plot.title = element_text(hjust=0.5, size = 10))
+g2 <- ggplot(rock_word_repetition, aes(x = round(rep_rate,2))) + geom_bar(fill = 'lightblue') +
+   xlab('') + ggtitle('Rock') +
+  theme(plot.title = element_text(hjust=0.5, size = 10))
+g3 <- ggplot(pop_word_repetition, aes(x = round(rep_rate,2))) + geom_bar(fill = 'lightblue') +
+  xlab('repetitive rate') + ggtitle('Pop') +
+  theme(plot.title = element_text(hjust=0.5, size = 10))
+title2 <- textGrob("The Repetitive Rate of the Most Frequently Used Word", gp=gpar(fontface="bold", fontsize = 15))
+grid.arrange(g1,g2,g3, nrow = 3, top = title2)
+```
+
+In fact, I found that in most hip-hop songs, there are few duplicate words. The most commonly used word in one song mainly accounts for less than 10 percent of the whole song. In addtion, in hip-hop lyrics, it seems that there is hardly any songs in which the most frequently used word accounts for more than 25%. Surprisingly, it seems that there are more pop and rock songs in which the most commonly used word accounts for more than 15 percent.
+
+Actually, there are indeed some hip-hop songs with many duplicate words. For example, There are 195 'shake' in the song 'suga-baby' and there are 170 'white' in the song 'what-if-i-was-white'. It is likely that these songs belong to a specific type of hip-hop music.
+```{r}
+hip_hop_word_repetition <- hip_hop_tibble %>%
+  group_by(id) %>% count(word, sort = TRUE)
+hip_hop_word_repetition[1,]
+hip_hop_word_repetition[2,]
+dt_lyrics[dt_lyrics$id == hip_hop_word_repetition[1,]$id,]$song
+dt_lyrics[dt_lyrics$id == hip_hop_word_repetition[2,]$id,]$song
+```
+
+## Conclusions
+1. There are many spoken words in hip-hop lyrics like yo, ya, which are not commonly used in rock and pop songs. Words in Hip-Hop songs are more varied while Pop songs like to use some specific words.
+
+2. Most Hip-Hop songs express negative emotions while most pop songs express positive emotions.
+
+3. Most Hip-Hop songs do not use words repeatedly. There are more rock and pop songs in which the most frequently used word accounts for more than 15%.
+
